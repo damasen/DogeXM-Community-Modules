@@ -8,6 +8,8 @@ __author__ = "cr5315"
 
 
 # Since DogeXM runs on the same box as SuchModBot, we can load its list of slurs so that they can't be added to the words file
+BANNED_WORDS = []
+BANNED_WORDS_MODULE = "banned-words"
 BOT = None
 ENDINGS = [".", "!", "?"]
 MODULE = "words"
@@ -16,10 +18,15 @@ WORDS = []
 
 
 def setup(code):
+    global BANNED_WORDS
     global BOT
     global SLURS
     global WORDS
     BOT = code.default
+
+    BANNED_WORDS = database.get(BOT, BANNED_WORDS_MODULE)
+    if not BANNED_WORDS:
+        BANNED_WORDS = []
 
     SLURS = database.get("SuchModBot", "slur")
     if not SLURS:
@@ -32,6 +39,7 @@ def setup(code):
 
 def save_words():
     database.set(BOT, WORDS, MODULE)
+    database.set(BOT, BANNED_WORDS, BANNED_WORDS_MODULE)
 
 
 @hook(cmds=["addword"], args=True, rate=30)
@@ -49,6 +57,9 @@ def add_word(code, input):
     if word in SLURS:
         return code.reply("I don't like that word!")
 
+    if word in BANNED_WORDS:
+        return code.reply("I don't like that word!")
+
     if len(word) > 10:
         return code.reply("Woah man, that's really long!")
 
@@ -61,6 +72,39 @@ def add_word(code, input):
     WORDS.append(w)
     save_words()
     return code.reply("Added!")
+
+
+@hook(cmds=["banword"], args=True, admin=True)
+def ban_word(code, input):
+    global BANNED_WORDS
+    try:
+        args = input.group(2).split()
+        word = args[0].lower()
+    except (AttributeError, IndexError):
+        return code.reply("Please provide a word")
+
+    delete_word(code, input)
+
+    BANNED_WORDS.append(word)
+    save_words()
+    return code.reply("Word banned.")
+
+
+@hook(cmds=["unbanword"], args=True, admin=True)
+def unban_word(code, input):
+    global BANNED_WORDS
+    try:
+        args = input.group(2).split()
+        word = args[0].lower()
+    except (AttributeError, IndexError):
+        return code.reply("Please provide a word")
+
+    if word in BANNED_WORDS:
+        BANNED_WORDS.remove(word)
+        save_words()
+        return code.reply("Word unbanned.")
+    else:
+        return code.reply("That was is not banned.")
 
 
 @hook(cmds=["deleteword", "delword"], args=True, admin=True, rate=10)
@@ -92,6 +136,7 @@ def inspect_word(code, input):
     for w in WORDS:
         if w["word"] == word:
             return code.say("%s added by %s on %s" % (w["word"], w["who"], time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(w["time"]))))
+
 
 @hook(cmds=["words"], rate=15)
 def words_cmd(code, input):
